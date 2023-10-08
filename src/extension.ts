@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { exec } from 'child_process';
 
 const argoVariableDecorationType = vscode.window.createTextEditorDecorationType({
     overviewRulerColor: 'blue',
@@ -30,7 +31,27 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(yamlWatcher.onDidChange(highlightText));
     context.subscriptions.push(ymlWatcher.onDidChange(highlightText));
 
+
+    vscode.workspace.onDidChangeTextDocument((e) => {
+        const filePath = e.document.uri.fsPath;
+        if (filePath.endsWith('.yaml')) {
+          executeArgoLint(filePath);
+        }
+      });
+      
+      // Register an event listener for changes in the active text editor window
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
+        if (editor && editor.document.languageId === 'yaml') {
+          executeArgoLint(editor.document.uri.fsPath);
+        }
+      });
+
 	highlightText();
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        return;
+    }
+    executeArgoLint(editor.document.uri.fsPath);
    
 }
 
@@ -56,3 +77,30 @@ function highlightText() {
     }
     editor.setDecorations(argoVariableDecorationType, decorations);
 }
+
+function executeArgoLint(filePath: string) {
+    const setEnvVar = `/home/tanvish/code/extention-test/dummyconfig.yaml`;
+    const command = `/home/tanvish/bin/argo lint ${filePath} --username dummy --password dummy`;
+
+    process.env.KUBECONFIG = setEnvVar;
+
+
+  
+    exec(command, (error, stdout, stderr) => {
+      if (stderr) {
+        vscode.window.showErrorMessage(`Argo lint errors:\n${stderr}`);
+        return;
+      }
+
+      if (error) {
+        vscode.window.showErrorMessage(`Error running argo lint: ${error.message}`);
+      }
+  
+      // Display stdout (e.g., linting results) to the user
+      if (stdout) {
+        vscode.window.showInformationMessage(`Argo lint output:\n${stdout}`);
+      }
+      
+    });
+  }
+
